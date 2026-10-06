@@ -15,7 +15,7 @@ run due jobs from their cron. No Redis, no extra service. Table owner of `jobs` 
 2. Define jobs in one module imported by every process (web and worker), e.g. `src/jobs.ts`:
    ```ts
    import { z } from 'zod';
-   import { defineJob } from './lib/jobs/index.js';
+   import { defineJob } from './lib/jobs/index.ts';
    export const sendWelcome = defineJob('email.welcome', z.object({ userId: z.string() }), async ({ userId }, { signal }) => { /* … */ });
    ```
    Enqueue: `await sendWelcome.enqueue({ userId }, { dedupeKey: `welcome:${userId}` })`.

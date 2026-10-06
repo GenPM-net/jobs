@@ -2,11 +2,11 @@ import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { testDb } from '../db/__fixtures__/pglite.js';
-import type { Db } from '../db/index.js';
-import { cronRoutes } from './adapters/hono.js';
-import { cronRoute } from './adapters/next.js';
-import * as schema from './schema.js';
+import { testDb } from '../db/__fixtures__/pglite.ts';
+import type { Db } from '../db/index.ts';
+import { cronRoutes } from './adapters/hono.ts';
+import { cronRoute } from './adapters/next.ts';
+import * as schema from './schema.ts';
 import {
   backoffMs,
   claimJobs,
@@ -21,7 +21,7 @@ import {
   retryJob,
   runDue,
   schedule,
-} from './index.js';
+} from './index.ts';
 
 let db: Db;
 const seen: string[] = [];

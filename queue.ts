@@ -2,9 +2,9 @@
 import { CronExpressionParser } from 'cron-parser';
 import { and, eq, inArray, lt, lte, or, sql } from 'drizzle-orm';
 import type { ZodType } from 'zod';
-import { type Executor, getDb } from '../db/index.js';
-import { getJob, type JobContext, registerJob } from './registry.js';
-import { type Job, jobSchedules, jobs } from './schema.js';
+import { type Executor, getDb } from '../db/index.ts';
+import { getJob, type JobContext, registerJob } from './registry.ts';
+import { type Job, jobSchedules, jobs } from './schema.ts';
 
 const MAX_ERROR = 2000;
 

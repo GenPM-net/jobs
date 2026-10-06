@@ -1,6 +1,6 @@
 // Adaptador Hono: `app.route('/api/cron', cronRoutes())`. El cron del hosting hace POST con `Authorization: Bearer <CRON_SECRET>`.
 import { Hono } from 'hono';
-import { isAuthorizedCron, runDue } from '../index.js';
+import { isAuthorizedCron, runDue } from '../index.ts';
 
 export function cronRoutes(opts: { limit?: number; concurrency?: number } = {}) {
   return new Hono().post('/', async (c) => {

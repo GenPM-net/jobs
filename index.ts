@@ -1,5 +1,5 @@
 // @core/jobs — API pública. Importa desde aquí; endpoint de cron en adapters/hono.ts y adapters/next.ts.
-export { isAuthorizedCron } from './cron-auth.js';
+export { isAuthorizedCron } from './cron-auth.ts';
 export {
   backoffMs,
   claimJobs,
@@ -15,6 +15,6 @@ export {
   runWorker,
   schedule,
   unschedule,
-} from './queue.js';
-export { clearJobs, type JobContext } from './registry.js';
-export { type Job, type JobSchedule, jobSchedules, jobs } from './schema.js';
+} from './queue.ts';
+export { clearJobs, type JobContext } from './registry.ts';
+export { type Job, type JobSchedule, jobSchedules, jobs } from './schema.ts';
