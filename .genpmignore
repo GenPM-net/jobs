@@ -1,0 +1,4 @@
+# Solo se inyecta el código del módulo: fuera tests, fixtures y configuración de desarrollo.
+*.test.ts
+*.test.tsx
+__fixtures__/

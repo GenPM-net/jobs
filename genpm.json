@@ -1,0 +1,34 @@
+{
+  "$": 1,
+  "n": "@core/jobs",
+  "v": "1.0.0",
+  "s": {
+    "en": "Background jobs on Postgres: durable queue, retries with backoff, cron schedules and a serverless cron endpoint",
+    "es": "Tareas en segundo plano sobre Postgres: cola durable, reintentos con backoff, cron y endpoint para serverless",
+    "pt-BR": "Tarefas em segundo plano no Postgres: fila durável, novas tentativas com backoff, cron e endpoint serverless",
+    "fr": "Tâches de fond sur Postgres : file durable, relances avec backoff, cron et point d'entrée serverless",
+    "de": "Hintergrundjobs auf Postgres: dauerhafte Queue, Wiederholungen mit Backoff, Cron und Serverless-Endpoint",
+    "ja": "Postgres 上のバックグラウンドジョブ：永続キュー、バックオフ付き再試行、cron、サーバーレス用エンドポイント",
+    "zh-CN": "基于 Postgres 的后台任务：持久队列、退避重试、cron 计划和无服务器 cron 端点",
+    "ko": "Postgres 기반 백그라운드 작업: 영속 큐, 백오프 재시도, cron 일정, 서버리스 cron 엔드포인트"
+  },
+  "d": "src/lib/jobs",
+  "l": "MIT",
+  "k": [
+    "jobs",
+    "queue",
+    "cron",
+    "background",
+    "scheduler"
+  ],
+  "g": {
+    "@core/db": "^1.0.0"
+  },
+  "p": {
+    "cron-parser": "^5.0.0",
+    "zod": "^4.0.0"
+  },
+  "e": [
+    "CRON_SECRET"
+  ]
+}
