@@ -1,10 +1,10 @@
 // Cola durable sobre Postgres: encolar, tomar con FOR UPDATE SKIP LOCKED, ejecutar con reintentos y backoff.
 import { CronExpressionParser } from 'cron-parser';
-import { and, eq, inArray, lt, lte, or, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm';
 import type { ZodType } from 'zod';
 import { type Executor, getDb } from '../db/index.ts';
 import { getJob, type JobContext, registerJob } from './registry.ts';
-import { type Job, jobSchedules, jobs } from './schema.ts';
+import { type Job, type JobSchedule, jobSchedules, jobs } from './schema.ts';
 
 const MAX_ERROR = 2000;
 
@@ -62,7 +62,23 @@ export function backoffMs(attempt: number): number {
   return Math.min(10_000 * 2 ** Math.max(0, attempt - 1), 3_600_000);
 }
 
-/** Toma hasta `limit` tareas vencidas (o cuyo bloqueo caducó) y las marca `running`. */
+/**
+ * Marca `failed` las tareas `running` cuyo bloqueo caducó y que ya agotaron sus intentos: el worker murió (o la tarea
+ * lo tumba) en el último intento. Sin esto, una tarea que tumba el proceso se reclamaría para siempre.
+ */
+export async function failExhaustedJobs(now: Date = new Date(), db: Executor = getDb()): Promise<number> {
+  const rows = await db
+    .update(jobs)
+    .set({ status: 'failed', lastError: 'lock expired', lockedUntil: null, finishedAt: now })
+    .where(and(eq(jobs.status, 'running'), lt(jobs.lockedUntil, now), gte(jobs.attempts, jobs.maxAttempts)))
+    .returning({ id: jobs.id });
+  return rows.length;
+}
+
+/**
+ * Toma hasta `limit` tareas vencidas (o cuyo bloqueo caducó y aún les quedan intentos) y las marca `running`. Las que
+ * caducaron sin intentos pendientes las deja a `failExhaustedJobs`.
+ */
 export async function claimJobs(limit: number, now: Date = new Date(), db: Executor = getDb()): Promise<Job[]> {
   const due = db
     .select({ id: jobs.id })
@@ -70,7 +86,7 @@ export async function claimJobs(limit: number, now: Date = new Date(), db: Execu
     .where(
       or(
         and(eq(jobs.status, 'queued'), lte(jobs.runAt, now)),
-        and(eq(jobs.status, 'running'), lt(jobs.lockedUntil, now)),
+        and(eq(jobs.status, 'running'), lt(jobs.lockedUntil, now), lt(jobs.attempts, jobs.maxAttempts)),
       ),
     )
     .orderBy(jobs.runAt)
@@ -148,8 +164,9 @@ export async function runDue(
 ): Promise<RunResult> {
   const now = opts.now ?? new Date();
   const scheduled = await tickSchedules(now, db);
+  const expired = await failExhaustedJobs(now, db);
   const claimed = await claimJobs(opts.limit ?? 20, now, db);
-  const result: RunResult = { claimed: claimed.length, done: 0, retried: 0, failed: 0, scheduled };
+  const result: RunResult = { claimed: claimed.length, done: 0, retried: 0, failed: expired, scheduled };
   const queue = [...claimed];
   const worker = async () => {
     for (let job = queue.shift(); job; job = queue.shift()) {
@@ -202,23 +219,29 @@ export async function unschedule(type: string, db: Executor = getDb()): Promise<
   await db.delete(jobSchedules).where(eq(jobSchedules.type, type));
 }
 
+/**
+ * Reclama el tick vencido de un horario: avanza `next_run_at` solo si sigue vencido. Es un único UPDATE condicional,
+ * así que con dos crons solapados (aunque ambos leyeran el horario como vencido) solo uno gana cada tick.
+ */
+export async function claimScheduleTick(s: Pick<JobSchedule, 'type' | 'cron' | 'timezone'>, now: Date, db: Executor = getDb()): Promise<boolean> {
+  const rows = await db
+    .update(jobSchedules)
+    .set({ lastRunAt: now, nextRunAt: nextCronDate(s.cron, now, s.timezone) })
+    .where(and(eq(jobSchedules.type, s.type), lte(jobSchedules.nextRunAt, now)))
+    .returning({ type: jobSchedules.type });
+  return rows.length > 0;
+}
+
 /** Encola una ejecución por horario vencido (una sola aunque se perdieran varias) y calcula la siguiente. */
 async function tickSchedules(now: Date, db: Executor): Promise<number> {
-  const due = await db
-    .select()
-    .from(jobSchedules)
-    .where(lte(jobSchedules.nextRunAt, now))
-    .for('update', { skipLocked: true });
+  const due = await db.select().from(jobSchedules).where(lte(jobSchedules.nextRunAt, now));
   let n = 0;
   for (const s of due) {
+    if (!(await claimScheduleTick(s, now, db))) continue; // otro cron se llevó este tick
     if (getJob(s.type)) {
       const job = await enqueue(s.type, s.payload, { dedupeKey: `schedule:${s.type}`, runAt: now }, db);
       if (job) n++;
     }
-    await db
-      .update(jobSchedules)
-      .set({ lastRunAt: now, nextRunAt: nextCronDate(s.cron, now, s.timezone) })
-      .where(eq(jobSchedules.type, s.type));
   }
   return n;
 }

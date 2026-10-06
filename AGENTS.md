@@ -29,6 +29,9 @@ run due jobs from their cron. No Redis, no extra service. Table owner of `jobs` 
 
 ## Conventions
 - Handlers must be idempotent: a job can run more than once (retries, expired locks).
+- Expired locks count as attempts: a job whose worker dies on its last attempt is marked `failed` with
+  `lastError = 'lock expired'` (`failExhaustedJobs`, run by `runDue`) instead of being reclaimed forever.
+- Each schedule tick is claimed with one conditional `UPDATE` (`claimScheduleTick`), so overlapping cron calls enqueue it once.
 - Payloads carry IDs and small values; load fresh data inside the handler. Never put secrets in payloads.
 - Pass `ctx.signal` to `fetch()` and long operations so timeouts stop them.
 - Job types are dotted lowercase names owned by a module (`newsletter.send-batch`).

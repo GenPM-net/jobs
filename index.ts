@@ -3,9 +3,11 @@ export { isAuthorizedCron } from './cron-auth.ts';
 export {
   backoffMs,
   claimJobs,
+  claimScheduleTick,
   defineJob,
   type EnqueueOptions,
   enqueue,
+  failExhaustedJobs,
   type JobHandle,
   nextCronDate,
   pruneJobs,

@@ -10,6 +10,7 @@ import * as schema from './schema.ts';
 import {
   backoffMs,
   claimJobs,
+  claimScheduleTick,
   clearJobs,
   defineJob,
   enqueue,
@@ -128,6 +129,23 @@ describe('runDue', () => {
     expect(again[0]!.attempts).toBe(2);
   });
 
+  it('a job that kills its worker on the last attempt fails instead of being reclaimed forever', async () => {
+    let calls = 0;
+    defineJob('crashy', z.object({}), async () => {
+      calls++;
+    }, { maxAttempts: 2 });
+    const job = await enqueue('crashy', {});
+    // Dos "caídas" del worker: se reclama, el proceso muere y el bloqueo caduca.
+    expect(await claimJobs(10)).toHaveLength(1);
+    expect(await claimJobs(10, later(6 * 60_000))).toHaveLength(1);
+    const r = await runDue({ now: later(12 * 60_000) });
+    expect(r).toMatchObject({ claimed: 0, failed: 1 });
+    expect(calls).toBe(0);
+    const [row] = await db.select().from(jobs).where(eq(jobs.id, job!.id));
+    expect(row).toMatchObject({ status: 'failed', attempts: 2, lastError: 'lock expired', lockedUntil: null });
+    expect(await claimJobs(10, later(60 * 60_000))).toHaveLength(0);
+  });
+
   it('runs with concurrency and invalid payloads fail without retry', async () => {
     const j = defineJob('c', z.object({ n: z.number() }), async (p) => {
       await new Promise((r) => setTimeout(r, 10));
@@ -160,6 +178,27 @@ describe('schedules', () => {
     expect(seen).toEqual(['daily']);
     const [after] = await db.select().from(jobSchedules);
     expect(after!.nextRunAt.getTime()).toBeGreaterThan(s!.nextRunAt.getTime());
+  });
+
+  it('overlapping cron calls enqueue each tick once, even from a stale read of the schedule', async () => {
+    defineJob('tick', z.object({}), async () => {
+      seen.push('tick');
+    });
+    await schedule('tick', '0 * * * *');
+    const [s] = await db.select().from(jobSchedules);
+    const now = new Date(s!.nextRunAt.getTime() + 60_000);
+    // Los dos crons leyeron el mismo horario vencido; solo uno puede llevarse el tick.
+    expect(await claimScheduleTick(s!, now)).toBe(true);
+    expect(await claimScheduleTick(s!, now)).toBe(false);
+    const [r1, r2] = await Promise.all([runDue({ now }), runDue({ now })]);
+    expect(r1.scheduled + r2.scheduled).toBe(0);
+    const [after] = await db.select().from(jobSchedules);
+    const due = new Date(after!.nextRunAt.getTime() + 1000);
+    const runs = await Promise.all([runDue({ now: due }), runDue({ now: due })]);
+    expect(runs.reduce((n, r) => n + r.scheduled, 0)).toBe(1);
+    expect(seen).toEqual(['tick']);
+    // Aunque la tarea ya terminó (la deduplicación ya no protege), un tercer cron con la misma hora no repite el tick.
+    expect((await runDue({ now: due })).scheduled).toBe(0);
   });
 
   it('prunes old done jobs and keeps failed ones', async () => {
