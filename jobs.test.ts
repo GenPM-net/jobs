@@ -152,7 +152,7 @@ describe('runDue', () => {
       seen.push(String(p.n));
     });
     for (let n = 0; n < 6; n++) await j.enqueue({ n });
-    await db.insert(jobs).values({ type: 'c', payload: { n: 'bad' } });
+    await db.insert(jobs).values({ type: 'c', payload: { n: 'bad' }, runAt: new Date() }); // hora de la app, como enqueue (Postgres guarda µs)
     const r = await runDue({ concurrency: 3 });
     expect(r).toMatchObject({ claimed: 7, done: 6, failed: 1 });
     expect(seen.sort()).toEqual(['0', '1', '2', '3', '4', '5']);
