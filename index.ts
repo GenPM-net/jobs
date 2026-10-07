@@ -18,5 +18,5 @@ export {
   schedule,
   unschedule,
 } from './queue.ts';
-export { clearJobs, type JobContext } from './registry.ts';
+export { clearJobs, getJob, type JobContext } from './registry.ts';
 export { type Job, type JobSchedule, jobSchedules, jobs } from './schema.ts';
