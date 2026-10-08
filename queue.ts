@@ -109,6 +109,8 @@ async function runJob(job: Job, db: Executor): Promise<'done' | 'retry' | 'faile
   const def = getJob(job.type);
   const fail = async (message: string, retry: boolean) => {
     const final = !retry || job.attempts >= job.maxAttempts;
+    // Visible en los logs del servidor, no solo en `jobs.last_error`.
+    console.error(`[jobs] ${job.type} ${job.id} attempt ${job.attempts}/${job.maxAttempts} ${final ? 'failed' : 'will retry'}: ${message.slice(0, 500)}`);
     await db
       .update(jobs)
       .set({
