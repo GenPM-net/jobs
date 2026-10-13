@@ -2,3 +2,5 @@
 *.test.ts
 *.test.tsx
 __fixtures__/
+# Documentación del repositorio (GitHub), no forma parte del módulo inyectado.
+README.md
