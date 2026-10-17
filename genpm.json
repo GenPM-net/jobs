@@ -1,7 +1,7 @@
 {
   "$": 1,
   "n": "@core/jobs",
-  "v": "1.1.1",
+  "v": "1.1.2",
   "s": {
     "en": "Background jobs on Postgres: durable queue, retries with backoff, cron schedules and a serverless cron endpoint",
     "es": "Tareas en segundo plano sobre Postgres: cola durable, reintentos con backoff, cron y endpoint para serverless",
