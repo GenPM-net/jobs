@@ -105,7 +105,7 @@ export async function claimJobs(limit: number, now: Date = new Date(), db: Execu
   return claimed.sort((a, b) => a.runAt.getTime() - b.runAt.getTime());
 }
 
-async function runJob(job: Job, db: Executor): Promise<'done' | 'retry' | 'failed'> {
+async function runJob(job: Job, db: Executor, claimedAt: Date = new Date()): Promise<'done' | 'retry' | 'failed'> {
   const def = getJob(job.type);
   const fail = async (message: string, retry: boolean) => {
     const final = !retry || job.attempts >= job.maxAttempts;
@@ -129,7 +129,9 @@ async function runJob(job: Job, db: Executor): Promise<'done' | 'retry' | 'faile
 
   await db
     .update(jobs)
-    .set({ lockedUntil: new Date(Date.now() + def.timeoutMs + 30_000) })
+    // Desde el mismo instante con el que se reclamó (y nunca antes que el reloj local): si se calculara con otro reloj
+    // (otra instancia, o un `now` explícito), un cron concurrente podría ver el bloqueo caducado y ejecutarla dos veces.
+    .set({ lockedUntil: new Date(Math.max(claimedAt.getTime(), Date.now()) + def.timeoutMs + 30_000) })
     .where(eq(jobs.id, job.id));
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error(`timeout after ${def.timeoutMs} ms`)), def.timeoutMs);
@@ -172,7 +174,7 @@ export async function runDue(
   const queue = [...claimed];
   const worker = async () => {
     for (let job = queue.shift(); job; job = queue.shift()) {
-      const r = await runJob(job, db);
+      const r = await runJob(job, db, now);
       if (r === 'done') result.done++;
       else if (r === 'retry') result.retried++;
       else result.failed++;
