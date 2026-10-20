@@ -201,6 +201,25 @@ describe('schedules', () => {
     expect((await runDue({ now: due })).scheduled).toBe(0);
   });
 
+  it('a job being run is not claimed again by a concurrent cron that uses the same (future) now', async () => {
+    let release!: () => void;
+    const started = new Promise<void>((ok) => {
+      defineJob('slow', z.object({}), async () => {
+        seen.push('slow');
+        ok();
+        await new Promise<void>((r) => (release = r));
+      });
+    });
+    const now = new Date(Date.now() + 3_600_000); // una hora por delante del reloj real
+    await db.insert(jobs).values({ type: 'slow', payload: {}, runAt: new Date(now.getTime() - 1000) });
+    const first = runDue({ now });
+    await started; // A ya la reclamó y la está ejecutando (con su bloqueo ajustado al timeout)
+    expect((await runDue({ now })).claimed).toBe(0);
+    release();
+    await first;
+    expect(seen).toEqual(['slow']);
+  });
+
   it('prunes old done jobs and keeps failed ones', async () => {
     const j = defineJob('p', z.object({}), async () => {});
     await j.enqueue({});
